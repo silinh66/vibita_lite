@@ -15,9 +15,13 @@ import { authenticate } from "../shopify.server";
 import db from "../db.server";
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
-  const response = await admin.graphql(
-    `#graphql
+  const { admin, session } = await authenticate.admin(request); /* Wrapper for Order Fetching to handle Permissions */
+  let enrichedOrders = [];
+  let errorMsg = null;
+
+  try {
+    const response = await admin.graphql(
+      `#graphql
       query getOrders {
         orders(first: 10, sortKey: CREATED_AT, reverse: true) {
           edges {
@@ -36,29 +40,36 @@ export const loader = async ({ request }) => {
           }
         }
       }`
-  );
+    );
 
-  const data = await response.json();
-  const orders = data.data.orders.edges.map((edge) => edge.node);
+    const data = await response.json();
+    if (data.errors) throw new Error(JSON.stringify(data.errors));
 
-  // Fetch processing state from DB
-  const states = await db.orderState.findMany({
-    where: {
-      shop: session.shop,
-      orderId: { in: orders.map((o) => o.id) },
-    },
-  });
+    const orders = data.data.orders.edges.map((edge) => edge.node);
 
-  // Merge state
-  const enrichedOrders = orders.map((order) => {
-    const state = states.find((s) => s.orderId === order.id);
-    return {
-      ...order,
-      isProcessed: state ? state.isProcessed : false,
-    };
-  });
+    // Fetch processing state from DB
+    const states = await db.orderState.findMany({
+      where: {
+        shop: session.shop,
+        orderId: { in: orders.map((o) => o.id) },
+      },
+    });
 
-  return json({ orders: enrichedOrders });
+    // Merge state
+    enrichedOrders = orders.map((order) => {
+      const state = states.find((s) => s.orderId === order.id);
+      return {
+        ...order,
+        isProcessed: state ? state.isProcessed : false,
+      };
+    });
+
+  } catch (err) {
+    console.error("Failed to load orders:", err);
+    errorMsg = "Failed to load orders. Ensure 'Read Orders' scope is granted in Partner Dashboard > API Access.";
+  }
+
+  return json({ orders: enrichedOrders, error: errorMsg });
 };
 
 export const action = async ({ request }) => {
@@ -88,7 +99,7 @@ export const action = async ({ request }) => {
 };
 
 export default function Index() {
-  const { orders } = useLoaderData();
+  const { orders, error } = useLoaderData();
   const fetcher = useFetcher();
 
   const resourceName = {
@@ -149,6 +160,11 @@ export default function Index() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
+              {error && (
+                <div style={{ padding: '10px', background: '#ffe6e6', borderRadius: '4px', color: '#d00' }}>
+                  <Text as="p" fontWeight="bold">{error}</Text>
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
                   <Text as="h2" variant="headingMd">
