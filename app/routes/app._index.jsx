@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node";
-import { useLoaderData } from "@remix-run/react";
+import { useLoaderData, useFetcher } from "@remix-run/react";
 import {
   Page,
   Layout,
@@ -8,11 +8,14 @@ import {
   IndexTable,
   useIndexResourceState,
   BlockStack,
+  Badge,
+  Button,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 
 export const loader = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const response = await admin.graphql(
     `#graphql
       query getOrders {
@@ -36,13 +39,58 @@ export const loader = async ({ request }) => {
   );
 
   const data = await response.json();
-  return json({
-    orders: data.data.orders.edges.map((edge) => edge.node),
+  const orders = data.data.orders.edges.map((edge) => edge.node);
+
+  // Fetch processing state from DB
+  const states = await db.orderState.findMany({
+    where: {
+      shop: session.shop,
+      orderId: { in: orders.map((o) => o.id) },
+    },
   });
+
+  // Merge state
+  const enrichedOrders = orders.map((order) => {
+    const state = states.find((s) => s.orderId === order.id);
+    return {
+      ...order,
+      isProcessed: state ? state.isProcessed : false,
+    };
+  });
+
+  return json({ orders: enrichedOrders });
+};
+
+export const action = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const orderId = formData.get("orderId");
+  const actionType = formData.get("actionType");
+
+  if (actionType === "toggle") {
+    const current = await db.orderState.findUnique({ where: { orderId } });
+    const newValue = current ? !current.isProcessed : true;
+
+    await db.orderState.upsert({
+      where: { orderId },
+      create: {
+        orderId,
+        shop: session.shop,
+        isProcessed: true,
+      },
+      update: {
+        isProcessed: newValue,
+      },
+    });
+  }
+
+  return json({ success: true });
 };
 
 export default function Index() {
   const { orders } = useLoaderData();
+  const fetcher = useFetcher();
+
   const resourceName = {
     singular: "order",
     plural: "orders",
@@ -53,7 +101,7 @@ export default function Index() {
 
   const rowMarkup = orders.map(
     (
-      { id, name, createdAt, displayFulfillmentStatus, totalPriceSet },
+      { id, name, createdAt, displayFulfillmentStatus, totalPriceSet, isProcessed },
       index,
     ) => (
       <IndexTable.Row
@@ -75,6 +123,22 @@ export default function Index() {
           {totalPriceSet?.shopMoney?.amount}{" "}
           {totalPriceSet?.shopMoney?.currencyCode}
         </IndexTable.Cell>
+        <IndexTable.Cell>
+          {isProcessed ? (
+            <Badge tone="success">Processed</Badge>
+          ) : (
+            <Badge tone="attention">Pending</Badge>
+          )}
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <fetcher.Form method="post">
+            <input type="hidden" name="orderId" value={id} />
+            <input type="hidden" name="actionType" value="toggle" />
+            <Button submit onClick={(e) => e.stopPropagation()} size="micro">
+              {isProcessed ? "Mark Pending" : "Mark Processed"}
+            </Button>
+          </fetcher.Form>
+        </IndexTable.Cell>
       </IndexTable.Row>
     ),
   );
@@ -86,10 +150,10 @@ export default function Index() {
           <Card>
             <BlockStack gap="400">
               <Text as="h2" variant="headingMd">
-                Recent Orders
+                Order Processing
               </Text>
               <Text as="p" tone="subdued">
-                View the last 10 orders from your store.
+                Manage your orders. Click "Mark Processed" to track status.
               </Text>
               {orders.length > 0 ? (
                 <IndexTable
@@ -102,8 +166,10 @@ export default function Index() {
                   headings={[
                     { title: "Order" },
                     { title: "Date" },
-                    { title: "Status" },
+                    { title: "Fulfillment" },
                     { title: "Total" },
+                    { title: "Status" },
+                    { title: "Action" },
                   ]}
                 >
                   {rowMarkup}
