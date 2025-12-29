@@ -149,12 +149,19 @@ export default function Index() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">
-                Order Processing
-              </Text>
-              <Text as="p" tone="subdued">
-                Manage your orders. Click "Mark Processed" to track status.
-              </Text>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <Text as="h2" variant="headingMd">
+                    Order Processing
+                  </Text>
+                  <Text as="p" tone="subdued">
+                    Manage your orders. Click "Mark Processed" to track status.
+                  </Text>
+                </div>
+                <Button url="/app/export" target="_blank" variant="primary">
+                  Export CSV
+                </Button>
+              </div>
               {orders.length > 0 ? (
                 <IndexTable
                   resourceName={resourceName}
