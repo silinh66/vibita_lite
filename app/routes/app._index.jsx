@@ -114,7 +114,8 @@ export default function Index() {
       });
 
       if (!response.ok) {
-        console.error("Export failed:", response.statusText);
+        const errorText = await response.text();
+        console.error("Export failed:", response.status, response.statusText, errorText);
         return;
       }
 
