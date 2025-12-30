@@ -1,5 +1,6 @@
 import { json } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import {
   Page,
   Layout,
@@ -101,6 +102,35 @@ export const action = async ({ request }) => {
 export default function Index() {
   const { orders, error } = useLoaderData();
   const fetcher = useFetcher();
+  const shopify = useAppBridge();
+
+  const handleExport = async () => {
+    try {
+      const token = await shopify.idToken();
+      const response = await fetch("/app/export", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error("Export failed:", response.statusText);
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `orders-${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      a.remove();
+    } catch (err) {
+      console.error("Export error:", err);
+    }
+  };
 
   const resourceName = {
     singular: "order",
@@ -174,7 +204,7 @@ export default function Index() {
                     Manage your orders. Click "Mark Processed" to track status.
                   </Text>
                 </div>
-                <Button onClick={() => window.location.href = "/app/export"} variant="primary">
+                <Button onClick={handleExport} variant="primary">
                   Export CSV
                 </Button>
               </div>
