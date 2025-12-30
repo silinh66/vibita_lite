@@ -174,7 +174,7 @@ export default function Index() {
                     Manage your orders. Click "Mark Processed" to track status.
                   </Text>
                 </div>
-                <Button url="/app/export" target="_blank" variant="primary">
+                <Button url="/app/export" variant="primary">
                   Export CSV
                 </Button>
               </div>

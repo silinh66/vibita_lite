@@ -2,12 +2,11 @@
 
 client_id = "235d0dec4f29672f0febc005b8ce344c"
 name = "Vibita Lite"
-application_url = "https://shopify.vibita.io"
+application_url = "https://lite.vibita.io"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-01"
@@ -30,7 +29,7 @@ scopes = "read_orders,write_merchant_managed_fulfillment_orders"
 
 [auth]
 redirect_urls = [
-  "https://shopify.vibita.io/auth/callback",
-  "https://shopify.vibita.io/auth/shopify/callback",
-  "https://shopify.vibita.io/api/auth/callback"
+  "https://lite.vibita.io/auth/callback",
+  "https://lite.vibita.io/auth/shopify/callback",
+  "https://lite.vibita.io/api/auth/callback"
 ]
