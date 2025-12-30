@@ -12,7 +12,6 @@ export const loader = async ({ request }) => {
               id
               name
               createdAt
-              email
               displayFulfillmentStatus
               totalPriceSet {
                 shopMoney {
@@ -40,11 +39,10 @@ export const loader = async ({ request }) => {
     const orders = data.data.orders.edges.map((edge) => edge.node);
 
     const csvRows = [
-      ["Order", "Date", "Email", "Total", "Currency", "Fulfillment"],
+      ["Order", "Date", "Total", "Currency", "Fulfillment"],
       ...orders.map((order) => [
         order.name,
         new Date(order.createdAt).toISOString().split("T")[0],
-        order.email || "",
         order.totalPriceSet?.shopMoney?.amount || "0",
         order.totalPriceSet?.shopMoney?.currencyCode || "",
         order.displayFulfillmentStatus,
